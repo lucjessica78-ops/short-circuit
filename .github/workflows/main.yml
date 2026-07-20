@@ -1,4 +1,8 @@
-in, master ]
+name: Build PandaSC.exe
+
+on:
+  push:
+    branches: [ main, master ]
   workflow_dispatch: {}
 
 jobs:
