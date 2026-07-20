@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PandaSC — Short-Circuit Studio</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- License gate overlay -->
+<div id="license-gate" class="license-gate hidden">
+  <div class="license-card">
+    <div class="license-mark">PSC</div>
+    <h1>Activate PandaSC</h1>
+    <p>Enter the license key you received at purchase to unlock the short-circuit studio.</p>
+    <input id="license-input" type="text" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXX" autocomplete="off" spellcheck="false">
+    <button id="license-submit">Activate</button>
+    <div id="license-error" class="license-error"></div>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">PSC</span>
+      <span class="brand-name">PandaSC</span>
+      <span class="brand-sub">short-circuit studio</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="btn-new" class="btn btn-ghost">New</button>
+      <button id="btn-open" class="btn btn-ghost">Open</button>
+      <input id="file-input" type="file" accept=".json" class="hidden">
+      <button id="btn-save" class="btn btn-ghost">Save</button>
+      <div class="divider"></div>
+      <span id="license-badge" class="badge">Licensed</span>
+    </div>
+  </header>
+
+  <div class="workspace">
+
+    <!-- Tool palette -->
+    <aside class="palette">
+      <div class="palette-group-label">Place</div>
+      <button class="tool" data-tool="select" title="Select / move">
+        <span class="tool-glyph">&#9670;</span><span>Select</span>
+      </button>
+      <button class="tool" data-tool="bus" title="Add bus">
+        <span class="tool-glyph">&#9644;</span><span>Bus</span>
+      </button>
+      <button class="tool" data-tool="ext_grid" title="Attach external grid">
+        <span class="tool-glyph">&#9107;</span><span>Grid</span>
+      </button>
+      <div class="palette-group-label">Connect</div>
+      <button class="tool" data-tool="line" title="Draw line between two buses">
+        <span class="tool-glyph">&#9472;</span><span>Line</span>
+      </button>
+      <button class="tool" data-tool="trafo" title="Draw transformer between two buses">
+        <span class="tool-glyph">&#8862;</span><span>Trafo</span>
+      </button>
+      <div class="palette-group-label">Attach</div>
+      <button class="tool" data-tool="load" title="Attach a load">
+        <span class="tool-glyph">&#9660;</span><span>Load</span>
+      </button>
+      <button class="tool" data-tool="motor" title="Attach a motor (SC in-feed)">
+        <span class="tool-glyph">&#9881;</span><span>Motor</span>
+      </button>
+      <div class="palette-group-label">Edit</div>
+      <button class="tool" data-tool="delete" title="Delete element">
+        <span class="tool-glyph">&#10005;</span><span>Delete</span>
+      </button>
+      <div class="palette-hint" id="palette-hint">Select a tool, then click the canvas.</div>
+    </aside>
+
+    <!-- Canvas -->
+    <main class="canvas-wrap">
+      <svg id="canvas" class="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="canvas-footer">
+        <span id="status-text">Ready.</span>
+      </div>
+    </main>
+
+    <!-- Right rail -->
+    <aside class="rail">
+      <div class="rail-tabs">
+        <button class="rail-tab active" data-tab="props">Properties</button>
+        <button class="rail-tab" data-tab="results">Fault results</button>
+      </div>
+
+      <div class="rail-panel" id="panel-props">
+        <div id="props-empty" class="empty-note">Nothing selected. Choose a tool from the left, or click an element on the diagram.</div>
+        <form id="props-form" class="props-form hidden"></form>
+      </div>
+
+      <div class="rail-panel hidden" id="panel-results">
+        <div class="results-controls">
+          <label>Case
+            <select id="sc-case">
+              <option value="max">Maximum (Ikss upper bound)</option>
+              <option value="min">Minimum (protection sizing)</option>
+            </select>
+          </label>
+          <label>Fault type
+            <select id="sc-fault">
+              <option value="3ph">Three-phase (3ph)</option>
+            </select>
+          </label>
+          <div class="field-hint" style="margin-top:-4px;">Single line-to-ground (1ph) fault studies are planned for a future release — they need zero-sequence (R0/X0) data per cable, which most standard cable libraries don't ship with.</div>
+          <button id="btn-run-sc" class="btn btn-primary">Run fault study</button>
+        </div>
+        <div id="sc-error" class="license-error"></div>
+        <div id="sc-results"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
