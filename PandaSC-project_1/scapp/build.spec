@@ -19,19 +19,12 @@ datas = []
 binaries = []
 hiddenimports = []
 
-# pandapower ships a lot of its own data (std_types, network templates) and
-# has many optional submodules that PyInstaller's static analysis won't find
-# on its own -- collect_all pulls in everything so calc_sc etc. works in the
-# frozen build exactly like it does when run from source.
 for pkg in ("pandapower", "pandera", "scipy", "networkx", "geojson", "deepdiff", "numpy", "pandas"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
 
-# Extra safety net: these numpy/pandas internal modules sometimes get missed by
-# static analysis even after collect_all, and their absence is exactly what
-# causes "Importing the numpy C-extensions failed" at runtime.
 hiddenimports += [
     "numpy.core._multiarray_umath",
     "numpy.core._multiarray_tests",
@@ -71,7 +64,7 @@ exe = EXE(
     upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,     # no console window on Windows; set True while debugging
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -79,4 +72,3 @@ exe = EXE(
     entitlements_file=None,
     onefile=True,
 )
-Once you commit that and the build goes green again, download the new zip (same steps as before) and try running it. Send me a screenshot either way.
