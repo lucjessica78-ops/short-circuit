@@ -8,6 +8,9 @@ on:
 jobs:
   build-windows-exe:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: PandaSC-project_1/scapp
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
@@ -27,4 +30,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PandaSC-windows-exe
-          path: dist/PandaSC.exe
+          path: PandaSC-project_1/scapp/dist/PandaSC.exe
