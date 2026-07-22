@@ -8,6 +8,10 @@ import pandapower.shortcircuit as sc
 import pandapower.toolbox as pp_toolbox
 import numpy as np
 
+from cable_library import CABLE_LIBRARY, cable_choices
+
+DEFAULT_ENDTEMP_DEGREE = 250.0  # IEC 60909 min-case assumption for cable end temperature
+
 
 class NetworkStore:
     def __init__(self):
@@ -38,38 +42,86 @@ class NetworkStore:
         )
         return int(idx)
 
-    def add_line(self, from_bus, to_bus, std_type, length_km):
-        idx = pp.create_line(self.net, from_bus=int(from_bus), to_bus=int(to_bus),
-                              length_km=float(length_km), std_type=std_type)
-        # Required by IEC 60909 min-case (thermal) short-circuit calcs. 250C is the
-        # standard assumption for XLPE cables; adjust per element later if needed.
-        self.net.line.loc[idx, "endtemp_degree"] = 250.0
+    def add_line(self, from_bus, to_bus, cable_key, length_km):
+        cable = CABLE_LIBRARY.get(cable_key)
+        if cable is None:
+            raise ValueError(f"Unknown cable type '{cable_key}'.")
+        idx = pp.create_line_from_parameters(
+            self.net, from_bus=int(from_bus), to_bus=int(to_bus), length_km=float(length_km),
+            r_ohm_per_km=cable["r_ohm_per_km"], x_ohm_per_km=cable["x_ohm_per_km"],
+            c_nf_per_km=cable["c_nf_per_km"], max_i_ka=cable["max_i_ka"],
+            name=cable["label"], endtemp_degree=DEFAULT_ENDTEMP_DEGREE,
+        )
+        self.net.line.loc[idx, "std_type"] = cable_key
         return int(idx)
+
+    def update_line(self, idx, cable_key, length_km):
+        cable = CABLE_LIBRARY.get(cable_key)
+        if cable is None:
+            raise ValueError(f"Unknown cable type '{cable_key}'.")
+        self.net.line.loc[idx, ["r_ohm_per_km", "x_ohm_per_km", "c_nf_per_km", "max_i_ka",
+                                 "name", "std_type", "length_km", "endtemp_degree"]] = [
+            cable["r_ohm_per_km"], cable["x_ohm_per_km"], cable["c_nf_per_km"], cable["max_i_ka"],
+            cable["label"], cable_key, float(length_km), DEFAULT_ENDTEMP_DEGREE,
+        ]
 
     def add_trafo(self, hv_bus, lv_bus, std_type):
         idx = pp.create_transformer(self.net, hv_bus=int(hv_bus), lv_bus=int(lv_bus),
                                      std_type=std_type)
         return int(idx)
 
+    def update_trafo(self, idx, std_type):
+        pp.change_std_type(self.net, int(idx), std_type, element="trafo")
+
     def add_load(self, bus, p_mw, q_mvar):
         idx = pp.create_load(self.net, bus=int(bus), p_mw=float(p_mw), q_mvar=float(q_mvar))
         return int(idx)
 
     def add_sgen_motor(self, bus, p_mw, k, rx):
-        """Represents a synchronous/induction motor contribution as a pandapower motor
+        """Represents an induction motor contribution as a pandapower motor
         element (for short-circuit in-feed). k = ratio Ilr/In, rx = R/X ratio."""
         idx = pp.create_motor(self.net, bus=int(bus), pn_mech_mw=float(p_mw),
                                cos_phi=0.9, efficiency_percent=95, lrc_pu=float(k),
                                rx=float(rx))
         return int(idx)
 
+    def add_generator(self, bus, p_mw, sn_mva, vn_kv, xdss_pu, rdss_ohm, cos_phi, pg_percent=0.0):
+        """A synchronous generator, contributing fault current per IEC 60909."""
+        idx = pp.create_gen(
+            self.net, bus=int(bus), p_mw=float(p_mw), sn_mva=float(sn_mva),
+            vn_kv=float(vn_kv), xdss_pu=float(xdss_pu), rdss_ohm=float(rdss_ohm),
+            cos_phi=float(cos_phi), pg_percent=float(pg_percent),
+        )
+        return int(idx)
+
+    # ---------- element editing (in place) ----------
+
+    def update_bus(self, idx, name, vn_kv):
+        self.net.bus.loc[idx, ["name", "vn_kv"]] = [name, float(vn_kv)]
+
+    def update_ext_grid(self, idx, s_sc_max_mva, rx_max, s_sc_min_mva, rx_min):
+        self.net.ext_grid.loc[idx, ["s_sc_max_mva", "rx_max", "s_sc_min_mva", "rx_min"]] = [
+            float(s_sc_max_mva), float(rx_max), float(s_sc_min_mva), float(rx_min)
+        ]
+
+    def update_load(self, idx, p_mw, q_mvar):
+        self.net.load.loc[idx, ["p_mw", "q_mvar"]] = [float(p_mw), float(q_mvar)]
+
+    def update_motor(self, idx, p_mw, k, rx):
+        self.net.motor.loc[idx, ["pn_mech_mw", "lrc_pu", "rx"]] = [float(p_mw), float(k), float(rx)]
+
+    def update_generator(self, idx, p_mw, sn_mva, xdss_pu, rdss_ohm, cos_phi):
+        self.net.gen.loc[idx, ["p_mw", "sn_mva", "xdss_pu", "rdss_ohm", "cos_phi"]] = [
+            float(p_mw), float(sn_mva), float(xdss_pu), float(rdss_ohm), float(cos_phi)
+        ]
+
     # ---------- element deletion ----------
 
     def delete_element(self, etype, idx):
         idx = int(idx)
         table_map = {
-            "bus": "bus", "line": "line", "trafo": "trafo",
-            "ext_grid": "ext_grid", "load": "load", "motor": "motor",
+            "bus": "bus", "line": "line", "trafo": "trafo", "ext_grid": "ext_grid",
+            "load": "load", "motor": "motor", "gen": "gen",
         }
         table = table_map.get(etype)
         if table is None:
@@ -79,10 +131,10 @@ class NetworkStore:
         else:
             self.net[table].drop(index=idx, inplace=True)
 
-    # ---------- std types ----------
+    # ---------- std types / cable choices ----------
 
-    def line_std_types(self):
-        return sorted(pp.available_std_types(self.net, "line").index.tolist())
+    def line_cable_choices(self):
+        return cable_choices()
 
     def trafo_std_types(self):
         return sorted(pp.available_std_types(self.net, "trafo").index.tolist())
@@ -111,9 +163,12 @@ class NetworkStore:
 
         lines = []
         for i, row in net.line.iterrows():
+            cable_key = row.get("std_type")
+            cable = CABLE_LIBRARY.get(cable_key)
             lines.append({"id": int(i), "from_bus": int(row.from_bus), "to_bus": int(row.to_bus),
-                           "std_type": row.std_type, "length_km": float(row.length_km),
-                           "name": row["name"]})
+                           "cable_key": cable_key,
+                           "cable_label": cable["label"] if cable else (cable_key or "Custom"),
+                           "length_km": float(row.length_km), "name": row["name"]})
 
         trafos = []
         for i, row in net.trafo.iterrows():
@@ -126,9 +181,7 @@ class NetworkStore:
                                "s_sc_max_mva": float(row.s_sc_max_mva),
                                "rx_max": float(row.rx_max),
                                "s_sc_min_mva": float(row.s_sc_min_mva),
-                               "rx_min": float(row.rx_min),
-                               "r0x0_max": float(row.get("r0x0_max", np.nan)) if not np.isnan(row.get("r0x0_max", np.nan)) else None,
-                               "x0x_max": float(row.get("x0x_max", np.nan)) if not np.isnan(row.get("x0x_max", np.nan)) else None})
+                               "rx_min": float(row.rx_min)})
 
         loads = []
         for i, row in net.load.iterrows():
@@ -142,14 +195,21 @@ class NetworkStore:
                                 "p_mw": float(row.pn_mech_mw), "lrc_pu": float(row.lrc_pu),
                                 "rx": float(row.rx)})
 
+        generators = []
+        if len(net.gen) > 0:
+            for i, row in net.gen.iterrows():
+                generators.append({"id": int(i), "bus": int(row.bus), "p_mw": float(row.p_mw),
+                                    "sn_mva": float(row.sn_mva), "xdss_pu": float(row.xdss_pu),
+                                    "rdss_ohm": float(row.rdss_ohm), "cos_phi": float(row.cos_phi)})
+
         return {"buses": buses, "lines": lines, "trafos": trafos, "ext_grids": ext_grids,
-                "loads": loads, "motors": motors}
+                "loads": loads, "motors": motors, "generators": generators}
 
     # ---------- short circuit ----------
 
     def run_short_circuit(self, case="max", fault="3ph"):
-        if len(self.net.ext_grid) == 0:
-            raise ValueError("Add at least one external grid before running a fault study.")
+        if len(self.net.ext_grid) == 0 and len(self.net.gen) == 0:
+            raise ValueError("Add at least one external grid or generator before running a fault study.")
         if len(self.net.bus) == 0:
             raise ValueError("Add at least one bus first.")
 
@@ -170,7 +230,13 @@ class NetworkStore:
                 "rk_ohm": g("rk_ohm"),
                 "xk_ohm": g("xk_ohm"),
             })
-        self.last_sc_results = {"case": case, "fault": fault, "results": results}
+        notes = []
+        if len(self.net.gen) > 0:
+            notes.append("With a generator in the network, Ip (peak) and Ith (thermal) values for "
+                          "buses electrically close to that generator are approximate -- IEC 60909's "
+                          "full near-generator correction isn't applied here. Ik\" (initial symmetrical) "
+                          "is accurate regardless.")
+        self.last_sc_results = {"case": case, "fault": fault, "results": results, "notes": notes}
         return self.last_sc_results
 
     # ---------- save / load ----------
