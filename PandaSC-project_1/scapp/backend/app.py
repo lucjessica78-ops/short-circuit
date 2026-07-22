@@ -53,11 +53,11 @@ def index():
     return render_template("index.html")
 
 
-# ------------------------------------------------------------ std types ---
+# ------------------------------------------------------- types / choices --
 
-@app.route("/api/std_types/line")
-def std_types_line():
-    return jsonify(store.line_std_types())
+@app.route("/api/cable_types")
+def cable_types():
+    return jsonify(store.line_cable_choices())
 
 
 @app.route("/api/std_types/trafo")
@@ -92,6 +92,16 @@ def move_bus(idx):
     return jsonify(store.to_dict())
 
 
+@app.route("/api/bus/<int:idx>", methods=["PUT"])
+def update_bus(idx):
+    d = request.json
+    try:
+        store.update_bus(idx, d.get("name"), d["vn_kv"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(store.to_dict())
+
+
 @app.route("/api/ext_grid", methods=["POST"])
 def create_ext_grid():
     d = request.json
@@ -101,11 +111,34 @@ def create_ext_grid():
     return jsonify({"id": idx, **store.to_dict()})
 
 
+@app.route("/api/ext_grid/<int:idx>", methods=["PUT"])
+def update_ext_grid(idx):
+    d = request.json
+    try:
+        store.update_ext_grid(idx, d["s_sc_max_mva"], d["rx_max"], d["s_sc_min_mva"], d["rx_min"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(store.to_dict())
+
+
 @app.route("/api/line", methods=["POST"])
 def create_line():
     d = request.json
-    idx = store.add_line(d["from_bus"], d["to_bus"], d["std_type"], d["length_km"])
+    try:
+        idx = store.add_line(d["from_bus"], d["to_bus"], d["cable_key"], d["length_km"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
     return jsonify({"id": idx, **store.to_dict()})
+
+
+@app.route("/api/line/<int:idx>", methods=["PUT"])
+def update_line(idx):
+    d = request.json
+    try:
+        store.update_line(idx, d["cable_key"], d["length_km"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(store.to_dict())
 
 
 @app.route("/api/trafo", methods=["POST"])
@@ -115,6 +148,16 @@ def create_trafo():
     return jsonify({"id": idx, **store.to_dict()})
 
 
+@app.route("/api/trafo/<int:idx>", methods=["PUT"])
+def update_trafo(idx):
+    d = request.json
+    try:
+        store.update_trafo(idx, d["std_type"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(store.to_dict())
+
+
 @app.route("/api/loads", methods=["POST"])
 def create_load():
     d = request.json
@@ -122,11 +165,53 @@ def create_load():
     return jsonify({"id": idx, **store.to_dict()})
 
 
+@app.route("/api/loads/<int:idx>", methods=["PUT"])
+def update_load(idx):
+    d = request.json
+    try:
+        store.update_load(idx, d["p_mw"], d["q_mvar"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(store.to_dict())
+
+
 @app.route("/api/motor", methods=["POST"])
 def create_motor():
     d = request.json
     idx = store.add_sgen_motor(d["bus"], d["p_mw"], d["lrc_pu"], d["rx"])
     return jsonify({"id": idx, **store.to_dict()})
+
+
+@app.route("/api/motor/<int:idx>", methods=["PUT"])
+def update_motor(idx):
+    d = request.json
+    try:
+        store.update_motor(idx, d["p_mw"], d["lrc_pu"], d["rx"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(store.to_dict())
+
+
+@app.route("/api/generator", methods=["POST"])
+def create_generator():
+    d = request.json
+    try:
+        idx = store.add_generator(d["bus"], d["p_mw"], d["sn_mva"], d["vn_kv"],
+                                   d["xdss_pu"], d["rdss_ohm"], d["cos_phi"],
+                                   d.get("pg_percent", 0.0))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"id": idx, **store.to_dict()})
+
+
+@app.route("/api/generator/<int:idx>", methods=["PUT"])
+def update_generator(idx):
+    d = request.json
+    try:
+        store.update_generator(idx, d["p_mw"], d["sn_mva"], d["xdss_pu"], d["rdss_ohm"], d["cos_phi"])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(store.to_dict())
 
 
 @app.route("/api/element/<etype>/<int:idx>", methods=["DELETE"])
